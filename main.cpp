@@ -14,7 +14,7 @@ int main()
     scanf("\n%s",hostname);
     printf("\nEnter iteration number\n");
     std::cin>>numberOfIteration;
-    dns->do_send(hostname,numberOfIteration);
+    dns->do_send(hostname, numberOfIteration);
     io_service.run();
     return 0;
 }

@@ -3,7 +3,6 @@
 #include<stdlib.h>
 #include<boost/array.hpp>
 #include <iostream>
-#include <ctime>
 #define T_A 1 //Ipv4 address
 #define T_NS 2 //Nameserver
 #define T_CNAME 5 // canonical name
@@ -113,20 +112,20 @@ u_char* DnsClient::ReadName(unsigned char* reader,unsigned char* buffer,int* cou
         return name;
 }
 
-void DnsClient::do_send(char* number, int numberOfIterration){
-    printf("Try to send");
+void DnsClient::do_send(char* number, int numberOfIteration){
+    int i=0;
     int sizeNumber=strlen((char*)number);
     char str[sizeNumber];
     int index=1;
     str[0]=number[sizeNumber-1];
-    int j=1;
-    while(index!=(2*sizeNumber)+1){
+    i=1;
+    while(index!=2*sizeNumber+1){
         str[index]='.';
-        str[index+1]=number[sizeNumber-j-1];
+        str[index+1]=number[sizeNumber-i-1];
         index=index+2;
-        j++;
+        i++;
     }
-    j=0;
+    i=0;
     char* host;
     host=(char*)str;
     strcat(host,"e164.arpa");
@@ -150,21 +149,21 @@ void DnsClient::do_send(char* number, int numberOfIterration){
     dns->auth_count = 0;
     dns->add_count = 0;
     qname =(char*)&buf[sizeof(struct DNS_HEADER)];
-    ChangetoDnsNameFormat(qname , number);
+    ChangetoDnsNameFormat(qname , host);
     qinfo =(struct QUESTION*)&buf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname) + 1)];
-    qinfo->qtype = htons( T_NAPTR );
+    qinfo->qtype = htons(T_NAPTR);
     qinfo->qclass = htons(1);
-    int i=0;
+    int bufSize=sizeof(struct DNS_HEADER)+(strlen((const char*)qname)+1)+sizeof(struct QUESTION);
+    printf("\nSending Packet...");
     start_time=clock();
-    while(i<=numberOfIterration){
-    socket.async_send_to(boost::asio::buffer(buf,1024),
+    while(i<=numberOfIteration){
+    socket.async_send_to(boost::asio::buffer(buf,bufSize),
                          endpoint,boost::bind(&DnsClient::handle_send ,
                                               this ,
                                               boost::asio::placeholders::error()));
+    usleep(1000);
     i++;
     }
-    unsigned int stop_time=clock();
-    std::cout<<"\time ="<<stop_time-start_time;
 }
 
 void DnsClient::do_receive(){
@@ -173,6 +172,8 @@ void DnsClient::do_receive(){
 
 void DnsClient::handle_send(const boost::system::error_code &error){
     if(!error){
+        //printf("\nDone");
+        printf("\nReceiving answer...");
         boost::asio::ip::udp::endpoint endpoint(
         boost::asio::ip::address::from_string("10.241.30.170"), 53);
         socket.async_receive_from(boost::asio::buffer(buf,1024),endpoint,
@@ -186,8 +187,7 @@ void DnsClient::handle_send(const boost::system::error_code &error){
 
 void DnsClient::handle_receive(const boost::system::error_code &error){
     if(!error){
-        printf("\nReceiving answer...");
-        struct RES_RECORD answers[20],addit[20],auth[20];
+        struct RES_RECORD answers[20],addit[20];
         struct sockaddr_in a;
         int stop,i,j,s;
         dns = (struct DNS_HEADER*) buf;
@@ -198,11 +198,9 @@ void DnsClient::handle_receive(const boost::system::error_code &error){
         printf("\n %d Authoritative Servers.",ntohs(dns->auth_count));
         printf("\n %d Additional records.\n\n",ntohs(dns->add_count));
         stop=0;
-        printf("\n");
-        //unsigned int stop_time=clock();
-        //std::cout<<"\ntime\n"<<start_time-stop_time;
+
         for(i=0;i<ntohs(dns->ans_count);i++)
-            {
+           {
                 answers[i].name=ReadName(reader,buf,&stop);
                 reader = reader + stop;
 
@@ -225,30 +223,50 @@ void DnsClient::handle_receive(const boost::system::error_code &error){
                     reader = reader + stop;
                 }
             }
-            //print answers
-            printf("\nAnswer Records : %d \n" , ntohs(dns->ans_count) );
-            for(i=0 ; i < ntohs(dns->ans_count) ; i++)
+       for(i=0;i<ntohs(dns->ans_count);i++)
             {
-               // printf("Name : %s ",answers[i].name);
-                if(ntohs(answers[i].resource->type)==T_NAPTR)
+                printf("\nAnswer : %d",i+1);
+                printf("Name : %s ",answers[i].name);
+
+                if(ntohs(answers[i].resource->type)==T_NAPTR) //IPv4 address
                 {
-                    //Canonical name for an alias
-                    printf("Regex : %s",answers[i].rdata);
-                    char* ident;
-                    ident=(char*)answers[i].rdata+(strlen((char*)answers[i].rdata)-3);
-                    char* mtsIdent="01!";
-                    if((strcmp(ident,mtsIdent))==0){
-                    printf("\n Abonent mts");
-                    }
+                    long *p;
+                    p=(long*)answers[i].rdata;
+                    a.sin_addr.s_addr=(*p); //working without ntohl
+                    printf("has IPv4 address : %s",inet_ntoa(a.sin_addr));
                 }
+                if(ntohs(answers[i].resource->type)==T_NAPTR) //Canonical name for an alias
+                {
+                    printf("\n Regexp : %s",answers[i].rdata);
+                    unsigned char* ident=answers[i].rdata+(strlen((char*)answers[i].rdata)-3);
+                    char* mtsIdent="01!";
+                    if((strcmp((char*)ident,mtsIdent))==0){
+                    printf("\n Abonent mts");
+
+                }
+
+                printf("\n");
             }
+        for(i=0;i<ntohs(dns->add_count);i++)
+            {
+                printf("\nAdditional : %d",i+1);
+                printf("Name : %s ",addit[i].name);
+                if(ntohs(addit[i].resource->type)==1)
+                {
+                    long *p;
+                    p=(long*)addit[i].rdata;
+                    a.sin_addr.s_addr=(*p); //working without ntohl
+                    printf("has IPv4 address : %s",inet_ntoa(a.sin_addr));
+                }
+                printf("\n");
+            }
+        clockid_t stop_time=clock();
+        std::cout<<" \n time"<<((start_time-stop_time)/(double)CLOCKS_PER_SEC);
+
+    }
     }
 else{
-printf("Faild to send");
+        printf("Err to recieve");
         delete this;
     }
 }
-
-
-
-
