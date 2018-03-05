@@ -10,7 +10,7 @@
 #define T_PTR 12 /* domain name pointer */
 #define T_MX 15 //Mail server
 #define T_NAPTR 35
-//try to coommit
+
 struct DNS_HEADER
 {
     unsigned short id; // identification number
@@ -80,8 +80,8 @@ void DnsClient::ChangetoDnsNameFormat(char *dns, char *host){
 
 }
 
-u_char* DnsClient::ReadName(unsigned char* reader,unsigned char* buffer,int* count){
-    unsigned char *name;
+u_char* DnsClient::ReadName(unsigned char* reader, int* count){
+        unsigned char *name;
         unsigned int p=0,jumped=0;//,offset;
         *count = 1;
         name = (unsigned char*)malloc(256);
@@ -155,14 +155,14 @@ void DnsClient::do_send(char* number, int numberOfIteration){
     qinfo->qtype = htons(T_NAPTR);
     qinfo->qclass = htons(1);
     int bufSize=sizeof(struct DNS_HEADER)+(strlen((const char*)qname)+1)+sizeof(struct QUESTION);
-    printf("\nSending Packet...");
     start_time=clock();
+    i=1;
     while(i<=numberOfIteration){
     socket.async_send_to(boost::asio::buffer(buf,bufSize),
                          endpoint,boost::bind(&DnsClient::handle_send ,
                                               this ,
                                               boost::asio::placeholders::error()));
-    usleep(1000);
+    usleep(100);
     i++;
     }
 }
@@ -173,11 +173,10 @@ void DnsClient::do_receive(){
 
 void DnsClient::handle_send(const boost::system::error_code &error){
     if(!error){
-        //printf("\nDone");
         printf("\nReceiving answer...");
         boost::asio::ip::udp::endpoint endpoint(
         boost::asio::ip::address::from_string("10.241.30.170"), 53);
-        socket.async_receive_from(boost::asio::buffer(buf,1024),endpoint,
+        socket.async_receive_from(boost::asio::buffer(buf,512),endpoint,
                                   boost::bind(&DnsClient::handle_receive,
                                   this , boost::asio::placeholders::error()));
     }else{
@@ -193,16 +192,11 @@ void DnsClient::handle_receive(const boost::system::error_code &error){
         int stop,i,j,s;
         dns = (struct DNS_HEADER*) buf;
         reader = &buf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname)+1) + sizeof(struct QUESTION)];
-        printf("\nThe response contains : ");
-        printf("\n %d Questions.",ntohs(dns->q_count));
-        printf("\n %d Answers.",ntohs(dns->ans_count));
-        printf("\n %d Authoritative Servers.",ntohs(dns->auth_count));
-        printf("\n %d Additional records.\n\n",ntohs(dns->add_count));
         stop=0;
 
         for(i=0;i<ntohs(dns->ans_count);i++)
            {
-                answers[i].name=ReadName(reader,buf,&stop);
+                answers[i].name=ReadName(reader,&stop);
                 reader = reader + stop;
 
                 answers[i].resource = (struct R_DATA*)(reader);
@@ -220,21 +214,17 @@ void DnsClient::handle_receive(const boost::system::error_code &error){
                 }
                 else
                 {
-                    answers[i].rdata = ReadName(reader,buf,&stop);
+                    answers[i].rdata = ReadName(reader,&stop);
                     reader = reader + stop;
                 }
             }
        for(i=0;i<ntohs(dns->ans_count);i++)
             {
-                printf("\nAnswer : %d",i+1);
-                printf("Name : %s ",answers[i].name);
-
                 if(ntohs(answers[i].resource->type)==T_NAPTR) //IPv4 address
                 {
                     long *p;
                     p=(long*)answers[i].rdata;
                     a.sin_addr.s_addr=(*p); //working without ntohl
-                    printf("has IPv4 address : %s",inet_ntoa(a.sin_addr));
                 }
                 if(ntohs(answers[i].resource->type)==T_NAPTR) //Canonical name for an alias
                 {
@@ -250,21 +240,18 @@ void DnsClient::handle_receive(const boost::system::error_code &error){
             }
         for(i=0;i<ntohs(dns->add_count);i++)
             {
-                printf("\nAdditional : %d",i+1);
-                printf("Name : %s ",addit[i].name);
                 if(ntohs(addit[i].resource->type)==1)
                 {
                     long *p;
                     p=(long*)addit[i].rdata;
                     a.sin_addr.s_addr=(*p); //working without ntohl
-                    printf("has IPv4 address : %s",inet_ntoa(a.sin_addr));
                 }
                 printf("\n");
             }
-        clockid_t stop_time=clock();
-        std::cout<<" \n time"<<((start_time-stop_time)/(double)CLOCKS_PER_SEC);
 
     }
+       clockid_t stop_time=clock();
+       std::cout<<" \n time"<<((start_time-stop_time)/(double)CLOCKS_PER_SEC);
     }
 else{
         printf("Err to recieve");

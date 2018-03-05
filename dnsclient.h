@@ -12,7 +12,7 @@ private:
     char *qname;
 public:
     boost::asio::ip::udp::socket socket;
-    u_char* ReadName(unsigned char* reader,unsigned char* buffer,int* count);
+    u_char* ReadName(unsigned char* reader, int* count);
     DnsClient(boost::asio::io_service &io_service) : socket(io_service,{boost::asio::ip::udp::v4(),53})
     {/*buf[1024]; dns=NULL;qinfo=NULL;*/}
     clock_t start_time;
