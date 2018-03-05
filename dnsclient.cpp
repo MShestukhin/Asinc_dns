@@ -173,7 +173,6 @@ void DnsClient::do_receive(){
 
 void DnsClient::handle_send(const boost::system::error_code &error){
     if(!error){
-        printf("\nReceiving answer...");
         boost::asio::ip::udp::endpoint endpoint(
         boost::asio::ip::address::from_string("10.241.30.170"), 53);
         socket.async_receive_from(boost::asio::buffer(buf,512),endpoint,
