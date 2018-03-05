@@ -130,7 +130,6 @@ void DnsClient::do_send(char* number, int numberOfIteration){
     char* host;
     host=(char*)str;
     strcat(host,"e164.arpa");
-    printf("%s",host);
     boost::asio::ip::udp::endpoint endpoint(
     boost::asio::ip::address::from_string("10.241.30.170"), 53);
     dns = (struct DNS_HEADER *)&buf;
