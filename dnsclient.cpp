@@ -10,6 +10,7 @@
 #define T_PTR 12 /* domain name pointer */
 #define T_MX 15 //Mail server
 #define T_NAPTR 35
+//try to coommit
 struct DNS_HEADER
 {
     unsigned short id; // identification number
