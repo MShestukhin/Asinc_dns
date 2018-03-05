@@ -202,7 +202,7 @@ void DnsClient::handle_receive(const boost::system::error_code &error){
                 answers[i].resource = (struct R_DATA*)(reader);
                 reader = reader + sizeof(struct R_DATA);
 
-                if(ntohs(answers[i].resource->type) == T_NAPTR) //if its an ipv4 address
+                if(ntohs(answers[i].resource->type) == T_NAPTR)
                 {
                     answers[i].rdata = (unsigned char*)malloc(ntohs(answers[i].resource->data_len));
                     for(j=0 ; j<ntohs(answers[i].resource->data_len) ; j++)
