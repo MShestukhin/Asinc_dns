@@ -3,6 +3,7 @@
 #include<stdlib.h>
 #include<boost/array.hpp>
 #include <iostream>
+#include <string.h>
 #define T_A 1 //Ipv4 address
 #define T_NS 2 //Nameserver
 #define T_CNAME 5 // canonical name
@@ -10,7 +11,6 @@
 #define T_PTR 12 /* domain name pointer */
 #define T_MX 15 //Mail server
 #define T_NAPTR 35
-
 struct DNS_HEADER
 {
     unsigned short id; // identification number
@@ -66,9 +66,10 @@ void DnsClient::ChangetoDnsNameFormat(char *dns, char *host){
         std::strcat(host,".");
         for(i = 0 ; i < strlen((char*)host) ; i++)
         {
+            //printf("%c\n", host[i]);
             if(host[i]=='.')
             {
-                *dns++ = i-lock;
+                *dns++= i-lock;
                 for(;lock<i;lock++)
                 {
                     *dns++=host[lock];
@@ -80,8 +81,8 @@ void DnsClient::ChangetoDnsNameFormat(char *dns, char *host){
 
 }
 
-u_char* DnsClient::ReadName(unsigned char* reader, int* count){
-        unsigned char *name;
+u_char* DnsClient::ReadName(unsigned char* reader,unsigned char* buffer,int* count){
+    unsigned char *name;
         unsigned int p=0,jumped=0;//,offset;
         *count = 1;
         name = (unsigned char*)malloc(256);
@@ -114,22 +115,23 @@ u_char* DnsClient::ReadName(unsigned char* reader, int* count){
 }
 
 void DnsClient::do_send(char* number, int numberOfIteration){
+    printf("%d",numberOfIteration);
     int i=0;
-    int sizeNumber=strlen((char*)number);
-    char str[sizeNumber];
-    int index=1;
-    str[0]=number[sizeNumber-1];
-    i=1;
-    while(index!=2*sizeNumber+1){
-        str[index]='.';
-        str[index+1]=number[sizeNumber-i-1];
-        index=index+2;
-        i++;
-    }
-    i=0;
+        int sizeNumber=strlen((char*)number);
+        char str[2*sizeNumber];
+        int index=1;
+        str[0]=number[sizeNumber-1];
+        i=1;
+        while(i!=sizeNumber+1){
+            str[index]='.';
+            str[index+1]=number[sizeNumber-i-1];
+            index=index+2;
+            i++;
+      }
+    str[index-1]='\0';
     char* host;
-    host=(char*)str;
-    strcat(host,"e164.arpa");
+    host=(char*)&str;
+    strcat(host,".e164.arpa");
     boost::asio::ip::udp::endpoint endpoint(
     boost::asio::ip::address::from_string("10.241.30.170"), 53);
     dns = (struct DNS_HEADER *)&buf;
@@ -161,7 +163,7 @@ void DnsClient::do_send(char* number, int numberOfIteration){
                          endpoint,boost::bind(&DnsClient::handle_send ,
                                               this ,
                                               boost::asio::placeholders::error()));
-    usleep(100);
+    usleep(1000);
     i++;
     }
 }
@@ -174,7 +176,7 @@ void DnsClient::handle_send(const boost::system::error_code &error){
     if(!error){
         boost::asio::ip::udp::endpoint endpoint(
         boost::asio::ip::address::from_string("10.241.30.170"), 53);
-        socket.async_receive_from(boost::asio::buffer(buf,512),endpoint,
+        socket.async_receive_from(boost::asio::buffer(buf,1024),endpoint,
                                   boost::bind(&DnsClient::handle_receive,
                                   this , boost::asio::placeholders::error()));
     }else{
@@ -194,13 +196,13 @@ void DnsClient::handle_receive(const boost::system::error_code &error){
 
         for(i=0;i<ntohs(dns->ans_count);i++)
            {
-                answers[i].name=ReadName(reader,&stop);
+                answers[i].name=ReadName(reader,buf,&stop);
                 reader = reader + stop;
 
                 answers[i].resource = (struct R_DATA*)(reader);
                 reader = reader + sizeof(struct R_DATA);
 
-                if(ntohs(answers[i].resource->type) == T_NAPTR)
+                if(ntohs(answers[i].resource->type) == T_NAPTR) //if its an ipv4 address
                 {
                     answers[i].rdata = (unsigned char*)malloc(ntohs(answers[i].resource->data_len));
                     for(j=0 ; j<ntohs(answers[i].resource->data_len) ; j++)
@@ -212,12 +214,13 @@ void DnsClient::handle_receive(const boost::system::error_code &error){
                 }
                 else
                 {
-                    answers[i].rdata = ReadName(reader,&stop);
+                    answers[i].rdata = ReadName(reader,buf,&stop);
                     reader = reader + stop;
                 }
             }
        for(i=0;i<ntohs(dns->ans_count);i++)
             {
+
                 if(ntohs(answers[i].resource->type)==T_NAPTR) //IPv4 address
                 {
                     long *p;
@@ -246,10 +249,10 @@ void DnsClient::handle_receive(const boost::system::error_code &error){
                 }
                 printf("\n");
             }
+        clockid_t stop_time=clock();
+        std::cout<<" \n time"<<((start_time-stop_time)/(double)CLOCKS_PER_SEC);
 
     }
-       clockid_t stop_time=clock();
-       std::cout<<" \n time"<<((start_time-stop_time)/(double)CLOCKS_PER_SEC);
     }
 else{
         printf("Err to recieve");
