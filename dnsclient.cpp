@@ -66,7 +66,6 @@ void DnsClient::ChangetoDnsNameFormat(char *dns, char *host){
         std::strcat(host,".");
         for(i = 0 ; i < strlen((char*)host) ; i++)
         {
-            //printf("%c\n", host[i]);
             if(host[i]=='.')
             {
                 *dns++= i-lock;
@@ -74,7 +73,7 @@ void DnsClient::ChangetoDnsNameFormat(char *dns, char *host){
                 {
                     *dns++=host[lock];
                 }
-                lock++; //or lock=i+1;
+                lock++;
             }
         }
         *dns++='\0';
@@ -114,9 +113,8 @@ u_char* DnsClient::ReadName(unsigned char* reader,unsigned char* buffer,int* cou
         return name;
 }
 
-void DnsClient::do_send(char* number, int numberOfIteration){
-    printf("%d",numberOfIteration);
-    int i=0;
+void DnsClient::do_send(char* number){
+    int i;
         int sizeNumber=strlen((char*)number);
         char str[2*sizeNumber];
         int index=1;
@@ -131,17 +129,18 @@ void DnsClient::do_send(char* number, int numberOfIteration){
     str[index-1]='\0';
     char* host;
     host=(char*)&str;
-    strcat(host,".e164.arpa");
+    strcat(host,"e164.arpa");
+    //printf("%s", host);
     boost::asio::ip::udp::endpoint endpoint(
-    boost::asio::ip::address::from_string("10.241.30.170"), 53);
-    dns = (struct DNS_HEADER *)&buf;
+    boost::asio::ip::address::from_string("10.241.30.170"), 53);//
+    struct DNS_HEADER *dns = (struct DNS_HEADER *)&buf;
     dns->id = (unsigned short) htons(getpid());
     dns->qr = 0; //This is a query
     dns->opcode = 0; //This is a standard query
     dns->aa = 0; //Not Authoritative
     dns->tc = 0; //This message is not truncated
     dns->rd = 1; //Recursion Desired
-    dns->ra = 0; //Recursion not available! hey we dont have it (lol)
+    dns->ra = 0; //Recursion not available! hey we dont have it
     dns->z = 0;
     dns->ad = 0;
     dns->cd = 0;
@@ -152,25 +151,18 @@ void DnsClient::do_send(char* number, int numberOfIteration){
     dns->add_count = 0;
     qname =(char*)&buf[sizeof(struct DNS_HEADER)];
     ChangetoDnsNameFormat(qname , host);
-    qinfo =(struct QUESTION*)&buf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname) + 1)];
+    struct QUESTION* qinfo =(struct QUESTION*)&buf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname) + 1)];
     qinfo->qtype = htons(T_NAPTR);
     qinfo->qclass = htons(1);
     int bufSize=sizeof(struct DNS_HEADER)+(strlen((const char*)qname)+1)+sizeof(struct QUESTION);
-    start_time=clock();
     i=1;
-    while(i<=numberOfIteration){
     socket.async_send_to(boost::asio::buffer(buf,bufSize),
                          endpoint,boost::bind(&DnsClient::handle_send ,
                                               this ,
                                               boost::asio::placeholders::error()));
     usleep(1000);
-    i++;
-    }
 }
 
-void DnsClient::do_receive(){
-
-}
 
 void DnsClient::handle_send(const boost::system::error_code &error){
     if(!error){
@@ -187,72 +179,47 @@ void DnsClient::handle_send(const boost::system::error_code &error){
 
 void DnsClient::handle_receive(const boost::system::error_code &error){
     if(!error){
-        struct RES_RECORD answers[20],addit[20];
-        struct sockaddr_in a;
-        int stop,i,j,s;
-        dns = (struct DNS_HEADER*) buf;
-        reader = &buf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname)+1) + sizeof(struct QUESTION)];
+        //printf("recv");
+        struct RES_RECORD answers;
+        int stop,j;
+        struct DNS_HEADER *dns = (struct DNS_HEADER*) buf;
+        unsigned char *reader = &buf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname)+1) + sizeof(struct QUESTION)];
         stop=0;
-
-        for(i=0;i<ntohs(dns->ans_count);i++)
-           {
-                answers[i].name=ReadName(reader,buf,&stop);
+                answers.name=ReadName(reader,buf,&stop);
                 reader = reader + stop;
 
-                answers[i].resource = (struct R_DATA*)(reader);
+                answers.resource = (struct R_DATA*)(reader);
                 reader = reader + sizeof(struct R_DATA);
 
-                if(ntohs(answers[i].resource->type) == T_NAPTR) //if its an ipv4 address
+                if(ntohs(answers.resource->type) == T_NAPTR)
                 {
-                    answers[i].rdata = (unsigned char*)malloc(ntohs(answers[i].resource->data_len));
-                    for(j=0 ; j<ntohs(answers[i].resource->data_len) ; j++)
+                    answers.rdata = (unsigned char*)malloc(ntohs(answers.resource->data_len));
+                    for(j=0 ; j<ntohs(answers.resource->data_len) ; j++)
                     {
-                        answers[i].rdata[j]=reader[j];
+                        answers.rdata[j]=reader[j];
                     }
-                    answers[i].rdata[ntohs(answers[i].resource->data_len)] = '\0';
-                    reader = reader + ntohs(answers[i].resource->data_len);
+                    answers.rdata[ntohs(answers.resource->data_len)] = '\0';
+                    reader = reader + ntohs(answers.resource->data_len);
                 }
                 else
                 {
-                    answers[i].rdata = ReadName(reader,buf,&stop);
+                    answers.rdata = ReadName(reader,buf,&stop);
                     reader = reader + stop;
                 }
-            }
-       for(i=0;i<ntohs(dns->ans_count);i++)
-            {
-
-                if(ntohs(answers[i].resource->type)==T_NAPTR) //IPv4 address
+                if(ntohs(answers.resource->type)==T_NAPTR)
                 {
-                    long *p;
-                    p=(long*)answers[i].rdata;
-                    a.sin_addr.s_addr=(*p); //working without ntohl
-                }
-                if(ntohs(answers[i].resource->type)==T_NAPTR) //Canonical name for an alias
-                {
-                    printf("\n Regexp : %s",answers[i].rdata);
-                    unsigned char* ident=answers[i].rdata+(strlen((char*)answers[i].rdata)-3);
+                    //printf("\n Regexp : %s",answers.rdata);
+                    unsigned char* ident=answers.rdata+(strlen((char*)answers.rdata)-3);
                     char* mtsIdent="01!";
                     if((strcmp((char*)ident,mtsIdent))==0){
-                    printf("\n Abonent mts");
+                    //printf("\n Abonent mts");
 
                 }
 
-                printf("\n");
+                //printf("\n");
+                socket.close();
             }
-        for(i=0;i<ntohs(dns->add_count);i++)
-            {
-                if(ntohs(addit[i].resource->type)==1)
-                {
-                    long *p;
-                    p=(long*)addit[i].rdata;
-                    a.sin_addr.s_addr=(*p); //working without ntohl
-                }
-                printf("\n");
-            }
-        clockid_t stop_time=clock();
-        std::cout<<" \n time"<<((start_time-stop_time)/(double)CLOCKS_PER_SEC);
 
-    }
     }
 else{
         printf("Err to recieve");

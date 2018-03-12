@@ -6,18 +6,13 @@
 class DnsClient
 {
 private:
-    unsigned char buf[1024],*reader;
-    struct DNS_HEADER *dns;
-    struct QUESTION *qinfo;
+    unsigned char buf[512];
     char *qname;
 public:
     boost::asio::ip::udp::socket socket;
     u_char* ReadName(unsigned char* reader,unsigned char* buffer,int* count);
-    DnsClient(boost::asio::io_service &io_service) : socket(io_service,{boost::asio::ip::udp::v4(),53})
-    {/*buf[1024]; dns=NULL;qinfo=NULL;*/}
-    clock_t start_time;
-    void do_send(char *number, int numberOfIteration);
-    void do_receive();
+    DnsClient(boost::asio::io_service &io_service) : socket(io_service,{boost::asio::ip::udp::v4(),53}){}
+    void do_send(char *number);
     void handle_send(const boost::system::error_code &error);
     void handle_receive(const boost::system::error_code &error);
     void ChangetoDnsNameFormat (char* dns,char* host);
