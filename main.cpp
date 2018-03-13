@@ -7,7 +7,8 @@ using namespace std;
 int func(int number,char* host){
     boost::asio::io_service* io_service=new boost::asio::io_service;
     DnsClient dns(*io_service);//=new DnsClient(io_service);
-    dns.do_send(host);
+    dns.makeBuf(host);
+    dns.do_send(1);
     io_service->run();
     io_service->reset();
     delete io_service;

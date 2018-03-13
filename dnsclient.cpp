@@ -113,7 +113,7 @@ u_char* DnsClient::ReadName(unsigned char* reader,unsigned char* buffer,int* cou
         return name;
 }
 
-void DnsClient::do_send(char* number){
+void DnsClient::makeBuf(char* number){
     int i;
         int sizeNumber=strlen((char*)number);
         char str[2*sizeNumber];
@@ -133,7 +133,7 @@ void DnsClient::do_send(char* number){
     //printf("%s", host);
     boost::asio::ip::udp::endpoint endpoint(
     boost::asio::ip::address::from_string("10.241.30.170"), 53);//
-    struct DNS_HEADER *dns = (struct DNS_HEADER *)&buf;
+    struct DNS_HEADER *dns = (struct DNS_HEADER *)&sendBuf;
     dns->id = (unsigned short) htons(getpid());
     dns->qr = 0; //This is a query
     dns->opcode = 0; //This is a standard query
@@ -149,75 +149,109 @@ void DnsClient::do_send(char* number){
     dns->ans_count = 0;
     dns->auth_count = 0;
     dns->add_count = 0;
-    qname =(char*)&buf[sizeof(struct DNS_HEADER)];
+    qname =(char*)&sendBuf[sizeof(struct DNS_HEADER)];
     ChangetoDnsNameFormat(qname , host);
-    struct QUESTION* qinfo =(struct QUESTION*)&buf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname) + 1)];
+    struct QUESTION* qinfo =(struct QUESTION*)&sendBuf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname) + 1)];
     qinfo->qtype = htons(T_NAPTR);
     qinfo->qclass = htons(1);
-    int bufSize=sizeof(struct DNS_HEADER)+(strlen((const char*)qname)+1)+sizeof(struct QUESTION);
+    bufSize=sizeof(struct DNS_HEADER)+(strlen((const char*)qname)+1)+sizeof(struct QUESTION);
     i=1;
-    socket.async_send_to(boost::asio::buffer(buf,bufSize),
+
+}
+
+void DnsClient::do_send(int i){
+    printf("recv");
+    /*struct RES_RECORD answers;
+    int stop,j;
+    struct DNS_HEADER *dns = (struct DNS_HEADER*) recBuf;
+    unsigned char *reader = &recBuf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname)+1) + sizeof(struct QUESTION)];
+    stop=0;
+            answers.name=ReadName(reader,recBuf,&stop);
+            reader = reader + stop;
+
+            answers.resource = (struct R_DATA*)(reader);
+            reader = reader + sizeof(struct R_DATA);
+
+            if(ntohs(answers.resource->type) == T_NAPTR)
+            {
+                answers.rdata = (unsigned char*)malloc(ntohs(answers.resource->data_len));
+                for(j=0 ; j<ntohs(answers.resource->data_len) ; j++)
+                {
+                    answers.rdata[j]=reader[j];
+                }
+                answers.rdata[ntohs(answers.resource->data_len)] = '\0';
+                reader = reader + ntohs(answers.resource->data_len);
+            }
+            else
+            {
+                answers.rdata = ReadName(reader,recBuf,&stop);
+                reader = reader + stop;
+            }
+            if(ntohs(answers.resource->type)==T_NAPTR)
+            {
+                //printf("\n Regexp : %s",answers.rdata);
+                unsigned char* ident=answers.rdata+(strlen((char*)answers.rdata)-3);
+                char* mtsIdent="01!";
+                if((strcmp((char*)ident,mtsIdent))==0){
+                printf("\n Abonent mts");
+
+            }
+            }
+            iter++;*/
+            boost::asio::ip::udp::endpoint endpoint(
+            boost::asio::ip::address::from_string("10.241.30.170"), 53);
+    socket.async_send_to(boost::asio::buffer(sendBuf,bufSize),
                          endpoint,boost::bind(&DnsClient::handle_send ,
                                               this ,
                                               boost::asio::placeholders::error()));
     usleep(1000);
 }
 
+void DnsClient::do_recive(){
+    boost::asio::ip::udp::endpoint endpoint(
+    boost::asio::ip::address::from_string("10.241.30.170"), 53);
+    socket.async_receive_from(boost::asio::buffer(recBuf,512),endpoint,
+                              boost::bind(&DnsClient::handle_receive,
+                              this , boost::asio::placeholders::error()));
+    iter++;
+    if(iter<100)
+    do_send(1);
+}
 
 void DnsClient::handle_send(const boost::system::error_code &error){
     if(!error){
-        boost::asio::ip::udp::endpoint endpoint(
-        boost::asio::ip::address::from_string("10.241.30.170"), 53);
-        socket.async_receive_from(boost::asio::buffer(buf,1024),endpoint,
-                                  boost::bind(&DnsClient::handle_receive,
-                                  this , boost::asio::placeholders::error()));
+        do_recive();
     }else{
         printf("have some error");
-        delete this;
     }
 }
 
 void DnsClient::handle_receive(const boost::system::error_code &error){
     if(!error){
-        //printf("recv");
         struct RES_RECORD answers;
         int stop,j;
-        struct DNS_HEADER *dns = (struct DNS_HEADER*) buf;
-        unsigned char *reader = &buf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname)+1) + sizeof(struct QUESTION)];
+        struct DNS_HEADER *dns = (struct DNS_HEADER*) recBuf;
+        unsigned char *reader = &recBuf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname)+1) + sizeof(struct QUESTION)];
         stop=0;
-                answers.name=ReadName(reader,buf,&stop);
+                answers.name=ReadName(reader,recBuf,&stop);
                 reader = reader + stop;
 
                 answers.resource = (struct R_DATA*)(reader);
                 reader = reader + sizeof(struct R_DATA);
 
-                if(ntohs(answers.resource->type) == T_NAPTR)
-                {
-                    answers.rdata = (unsigned char*)malloc(ntohs(answers.resource->data_len));
-                    for(j=0 ; j<ntohs(answers.resource->data_len) ; j++)
-                    {
-                        answers.rdata[j]=reader[j];
-                    }
-                    answers.rdata[ntohs(answers.resource->data_len)] = '\0';
-                    reader = reader + ntohs(answers.resource->data_len);
-                }
-                else
-                {
-                    answers.rdata = ReadName(reader,buf,&stop);
+                    answers.rdata = ReadName(reader,recBuf,&stop);
                     reader = reader + stop;
-                }
+
                 if(ntohs(answers.resource->type)==T_NAPTR)
                 {
-                    //printf("\n Regexp : %s",answers.rdata);
+                    printf("\n Regexp : %s",answers.rdata);
                     unsigned char* ident=answers.rdata+(strlen((char*)answers.rdata)-3);
                     char* mtsIdent="01!";
                     if((strcmp((char*)ident,mtsIdent))==0){
-                    //printf("\n Abonent mts");
+                    printf("\n Abonent mts");
+                    printf("%d", iter);
 
                 }
-
-                //printf("\n");
-                socket.close();
             }
 
     }
