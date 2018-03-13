@@ -10,10 +10,11 @@ private:
     int bufSize;
     char *qname;
     int iter;
+    int recvPac;
 public:
     boost::asio::ip::udp::socket socket;
     u_char* ReadName(unsigned char* reader,unsigned char* buffer,int* count);
-    DnsClient(boost::asio::io_service &io_service) : socket(io_service,{boost::asio::ip::udp::v4(),53}){iter=0;}
+    DnsClient(boost::asio::io_service &io_service) : socket(io_service,{boost::asio::ip::udp::v4(),53}){iter=0;recvPac=0;}
     void do_send(int i);
     void makeBuf(char *number);
     void do_recive();

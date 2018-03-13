@@ -130,7 +130,6 @@ void DnsClient::makeBuf(char* number){
     char* host;
     host=(char*)&str;
     strcat(host,"e164.arpa");
-    //printf("%s", host);
     boost::asio::ip::udp::endpoint endpoint(
     boost::asio::ip::address::from_string("10.241.30.170"), 53);//
     struct DNS_HEADER *dns = (struct DNS_HEADER *)&sendBuf;
@@ -160,51 +159,13 @@ void DnsClient::makeBuf(char* number){
 }
 
 void DnsClient::do_send(int i){
-    printf("recv");
-    /*struct RES_RECORD answers;
-    int stop,j;
-    struct DNS_HEADER *dns = (struct DNS_HEADER*) recBuf;
-    unsigned char *reader = &recBuf[sizeof(struct DNS_HEADER) + (strlen((const char*)qname)+1) + sizeof(struct QUESTION)];
-    stop=0;
-            answers.name=ReadName(reader,recBuf,&stop);
-            reader = reader + stop;
-
-            answers.resource = (struct R_DATA*)(reader);
-            reader = reader + sizeof(struct R_DATA);
-
-            if(ntohs(answers.resource->type) == T_NAPTR)
-            {
-                answers.rdata = (unsigned char*)malloc(ntohs(answers.resource->data_len));
-                for(j=0 ; j<ntohs(answers.resource->data_len) ; j++)
-                {
-                    answers.rdata[j]=reader[j];
-                }
-                answers.rdata[ntohs(answers.resource->data_len)] = '\0';
-                reader = reader + ntohs(answers.resource->data_len);
-            }
-            else
-            {
-                answers.rdata = ReadName(reader,recBuf,&stop);
-                reader = reader + stop;
-            }
-            if(ntohs(answers.resource->type)==T_NAPTR)
-            {
-                //printf("\n Regexp : %s",answers.rdata);
-                unsigned char* ident=answers.rdata+(strlen((char*)answers.rdata)-3);
-                char* mtsIdent="01!";
-                if((strcmp((char*)ident,mtsIdent))==0){
-                printf("\n Abonent mts");
-
-            }
-            }
-            iter++;*/
             boost::asio::ip::udp::endpoint endpoint(
             boost::asio::ip::address::from_string("10.241.30.170"), 53);
     socket.async_send_to(boost::asio::buffer(sendBuf,bufSize),
                          endpoint,boost::bind(&DnsClient::handle_send ,
                                               this ,
                                               boost::asio::placeholders::error()));
-    usleep(1000);
+    usleep(500);
 }
 
 void DnsClient::do_recive(){
@@ -214,7 +175,7 @@ void DnsClient::do_recive(){
                               boost::bind(&DnsClient::handle_receive,
                               this , boost::asio::placeholders::error()));
     iter++;
-    if(iter<100)
+    if(iter<1000)
     do_send(1);
 }
 
@@ -228,6 +189,7 @@ void DnsClient::handle_send(const boost::system::error_code &error){
 
 void DnsClient::handle_receive(const boost::system::error_code &error){
     if(!error){
+        recvPac++;
         struct RES_RECORD answers;
         int stop,j;
         struct DNS_HEADER *dns = (struct DNS_HEADER*) recBuf;
@@ -249,7 +211,7 @@ void DnsClient::handle_receive(const boost::system::error_code &error){
                     char* mtsIdent="01!";
                     if((strcmp((char*)ident,mtsIdent))==0){
                     printf("\n Abonent mts");
-                    printf("%d", iter);
+                    printf("%d", recvPac);
 
                 }
             }

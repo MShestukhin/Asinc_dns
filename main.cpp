@@ -1,7 +1,7 @@
 #include <iostream>
 #include <boost/asio.hpp>
 #include "dnsclient.h"
-#include <ctime>
+#include <time.h>
 using namespace std;
 
 int func(int number,char* host){
@@ -9,8 +9,7 @@ int func(int number,char* host){
     DnsClient dns(*io_service);//=new DnsClient(io_service);
     dns.makeBuf(host);
     dns.do_send(1);
-    io_service->run();
-    io_service->reset();
+    io_service->poll();
     delete io_service;
     if(number!=0) return func(number-1,host);
     else return 0;
@@ -25,7 +24,7 @@ int main()
     char hostname[100]="79834077832";
     func(numberOfIteration,hostname);
     double stop=clock();
-    std::cout<<(stop-start)/10000.0;
+    printf("%f",(stop-start)/CLOCKS_PER_SEC);
     return 0;
 }
 
