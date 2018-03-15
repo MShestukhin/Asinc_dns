@@ -4,6 +4,7 @@
 #include<boost/array.hpp>
 #include <iostream>
 #include <string.h>
+#include <cstdlib>
 #define T_A 1 //Ipv4 address
 #define T_NS 2 //Nameserver
 #define T_CNAME 5 // canonical name
@@ -60,6 +61,14 @@ struct RES_RECORD
     unsigned char *name;
     struct R_DATA *resource;
     unsigned char *rdata;
+    RES_RECORD(){
+        name=0;
+        resource=0;
+        rdata=0;
+    }
+    ~RES_RECORD(){
+
+    }
 };
 void DnsClient::ChangetoDnsNameFormat(char *dns, char *host){
     int lock = 0 , i;
@@ -165,7 +174,6 @@ void DnsClient::do_send(int i){
                          endpoint,boost::bind(&DnsClient::handle_send ,
                                               this ,
                                               boost::asio::placeholders::error()));
-    usleep(500);
 }
 
 void DnsClient::do_recive(){
@@ -175,6 +183,13 @@ void DnsClient::do_recive(){
                               boost::bind(&DnsClient::handle_receive,
                               this , boost::asio::placeholders::error()));
     iter++;
+    char mts_number_begin[100]="795240740";
+    int number=6000+iter;
+    char str_number[100]="";
+    std::sprintf(str_number,"%d",number);
+    std::strcat(mts_number_begin,str_number);
+    makeBuf(mts_number_begin);
+    usleep(250);
     if(iter<1000)
     do_send(1);
 }
@@ -190,6 +205,7 @@ void DnsClient::handle_send(const boost::system::error_code &error){
 void DnsClient::handle_receive(const boost::system::error_code &error){
     if(!error){
         recvPac++;
+        printf("\n%d\n", recvPac);
         struct RES_RECORD answers;
         int stop,j;
         struct DNS_HEADER *dns = (struct DNS_HEADER*) recBuf;
@@ -206,12 +222,11 @@ void DnsClient::handle_receive(const boost::system::error_code &error){
 
                 if(ntohs(answers.resource->type)==T_NAPTR)
                 {
-                    printf("\n Regexp : %s",answers.rdata);
+                    //printf("\n Regexp : %s",answers.rdata);
                     unsigned char* ident=answers.rdata+(strlen((char*)answers.rdata)-3);
                     char* mtsIdent="01!";
                     if((strcmp((char*)ident,mtsIdent))==0){
                     printf("\n Abonent mts");
-                    printf("%d", recvPac);
 
                 }
             }
