@@ -5,6 +5,12 @@
 #include <iostream>
 #include <string.h>
 #include <cstdlib>
+#include <boost/timer/timer.hpp>
+#include <boost/date_time/date.hpp>
+#include <boost/date_time/time_duration.hpp>
+#include <boost/date_time/local_time/local_time.hpp>
+#include <boost/chrono.hpp>
+#include <ctime>
 #define T_A 1 //Ipv4 address
 #define T_NS 2 //Nameserver
 #define T_CNAME 5 // canonical name
@@ -12,6 +18,7 @@
 #define T_PTR 12 /* domain name pointer */
 #define T_MX 15 //Mail server
 #define T_NAPTR 35
+
 struct DNS_HEADER
 {
     unsigned short id; // identification number
@@ -23,10 +30,8 @@ struct DNS_HEADER
     unsigned char qr :1; // query/response flag
 
     unsigned char rcode :4; // response code
-    unsigned char cd :1; // checking disabled
     unsigned char ad :1; // authenticated data
     unsigned char z :1; // its z! reserved
-    unsigned char ra :1; // recursion available
 
     unsigned short q_count; // number of question entries
     unsigned short ans_count; // number of answer entries
@@ -139,20 +144,16 @@ void DnsClient::makeBuf(char* number){
     char* host;
     host=(char*)&str;
     strcat(host,"e164.arpa");
-    boost::asio::ip::udp::endpoint endpoint(
-    boost::asio::ip::address::from_string("10.241.30.170"), 53);//
     struct DNS_HEADER *dns = (struct DNS_HEADER *)&sendBuf;
-    dns->id = (unsigned short) htons(getpid());
+    dns->id = (unsigned short) htons(getpid()+iter);
     dns->qr = 0; //This is a query
     dns->opcode = 0; //This is a standard query
     dns->aa = 0; //Not Authoritative
     dns->tc = 0; //This message is not truncated
     dns->rd = 1; //Recursion Desired
-    dns->ra = 0; //Recursion not available! hey we dont have it
     dns->z = 0;
-    dns->ad = 0;
-    dns->cd = 0;
-    dns->rcode = 0;
+    dns->ad = 1;
+    dns->rcode = 1;
     dns->q_count = htons(1); //we have only 1 question
     dns->ans_count = 0;
     dns->auth_count = 0;
@@ -168,35 +169,38 @@ void DnsClient::makeBuf(char* number){
 }
 
 void DnsClient::do_send(int i){
+    usleep(250);
+    //std::cout<<<<"\n";
             boost::asio::ip::udp::endpoint endpoint(
             boost::asio::ip::address::from_string("10.241.30.170"), 53);
     socket.async_send_to(boost::asio::buffer(sendBuf,bufSize),
                          endpoint,boost::bind(&DnsClient::handle_send ,
                                               this ,
                                               boost::asio::placeholders::error()));
+    //boost::chrono::system_clock::time_point time=boost::chrono::system_clock::now();
+    //std::cout<<time;
 }
 
 void DnsClient::do_recive(){
-    boost::asio::ip::udp::endpoint endpoint(
-    boost::asio::ip::address::from_string("10.241.30.170"), 53);
-    socket.async_receive_from(boost::asio::buffer(recBuf,512),endpoint,
-                              boost::bind(&DnsClient::handle_receive,
-                              this , boost::asio::placeholders::error()));
-    iter++;
-    char mts_number_begin[100]="795240740";
-    int number=6000+iter;
-    char str_number[100]="";
-    std::sprintf(str_number,"%d",number);
-    std::strcat(mts_number_begin,str_number);
-    makeBuf(mts_number_begin);
-    usleep(250);
-    if(iter<1000)
-    do_send(1);
+
 }
 
 void DnsClient::handle_send(const boost::system::error_code &error){
     if(!error){
-        do_recive();
+        boost::asio::ip::udp::endpoint endpoint(
+        boost::asio::ip::address::from_string("10.241.30.170"), 53);
+        socket.async_receive_from(boost::asio::buffer(recBuf,512),endpoint,
+                                  boost::bind(&DnsClient::handle_receive,
+                                  this , boost::asio::placeholders::error()));
+        iter++;
+        char mts_number_begin[100]="7952407";
+        int number=6000+iter;
+        char str_number[100]="";
+        std::sprintf(str_number,"%d",number);
+        std::strcat(mts_number_begin,str_number);
+        makeBuf(mts_number_begin);
+        if(iter<1000)
+        do_send(1);
     }else{
         printf("have some error");
     }
@@ -204,8 +208,8 @@ void DnsClient::handle_send(const boost::system::error_code &error){
 
 void DnsClient::handle_receive(const boost::system::error_code &error){
     if(!error){
+        printf("%d\n", recvPac);
         recvPac++;
-        printf("\n%d\n", recvPac);
         struct RES_RECORD answers;
         int stop,j;
         struct DNS_HEADER *dns = (struct DNS_HEADER*) recBuf;
@@ -220,16 +224,16 @@ void DnsClient::handle_receive(const boost::system::error_code &error){
                     answers.rdata = ReadName(reader,recBuf,&stop);
                     reader = reader + stop;
 
-                if(ntohs(answers.resource->type)==T_NAPTR)
-                {
+                //if(ntohs(answers.resource->type)==T_NAPTR)
+                //{
                     //printf("\n Regexp : %s",answers.rdata);
                     unsigned char* ident=answers.rdata+(strlen((char*)answers.rdata)-3);
                     char* mtsIdent="01!";
                     if((strcmp((char*)ident,mtsIdent))==0){
-                    printf("\n Abonent mts");
-
+                    //printf("\n Abonent mts");
                 }
-            }
+                    //memset(recBuf,0,512);
+            //}
 
     }
 else{

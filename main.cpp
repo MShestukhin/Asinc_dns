@@ -13,10 +13,11 @@ int main()
     double start=clock();
     dns.makeBuf(hostname);
     dns.do_send(1);
-    io_service->poll();
+    io_service->run();
     double stop=clock();
-    //printf("%f",(stop-start)/CLOCKS_PER_SEC);
+    printf("%f",(stop-start)/CLOCKS_PER_SEC);
     int i=0;
+    //while(1){};
     delete io_service;
     return 0;
 }
